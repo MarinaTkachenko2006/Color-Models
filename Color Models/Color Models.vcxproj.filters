@@ -1,17 +1,49 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Исходные файлы">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="src">
+      <UniqueIdentifier>{be30997b-f36f-454d-8096-aae306cea671}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Файлы заголовков">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    <Filter Include="third_party">
+      <UniqueIdentifier>{4b0fbcc3-7b62-41fb-be1c-bc59886f3291}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Файлы ресурсов">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="third_party\imgui">
+      <UniqueIdentifier>{baf68463-fd35-4cc4-9b94-e2bc6e59d192}</UniqueIdentifier>
     </Filter>
+    <Filter Include="third_party\imgui\backends">
+      <UniqueIdentifier>{53e149b9-a932-4b7f-9cdf-3e1a55322468}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\stb">
+      <UniqueIdentifier>{3e4b290c-2382-4402-8fe1-7e2872701481}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\SDL3">
+      <UniqueIdentifier>{13370da3-3a89-4f5b-a6b0-bceb7fe1096e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="stb_impl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui.cpp">
+      <Filter>third_party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_draw.cpp">
+      <Filter>third_party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_tables.cpp">
+      <Filter>third_party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp">
+      <Filter>third_party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl3.cpp">
+      <Filter>third_party\imgui\backends</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdlrenderer3.cpp">
+      <Filter>third_party\imgui\backends</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

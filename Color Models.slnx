@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Color Models/Color Models.vcxproj" />
+  <Project Path="Color Models/Color Models.vcxproj" Id="26188817-dde2-4d5d-af75-ee5ec9fb71c1" />
 </Solution>
