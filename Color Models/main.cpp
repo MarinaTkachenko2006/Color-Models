@@ -20,7 +20,7 @@
 #include "dialog_windows.h"
 
 static bool showWindow2 (false);   // Флаг открытости окна заданий
-static bool manualDrawing (true);  // Флаг ручной или текстурной отрисовки
+static bool manualDrawing (false);  // Флаг ручной или текстурной отрисовки
 
 enum class ActiveTask { None, Task1, Task2, Task3 }; // Перечисление возможных активных заданий
 
