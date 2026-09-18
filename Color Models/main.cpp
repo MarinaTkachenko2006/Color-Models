@@ -8,6 +8,7 @@
 #include <vector>
 #include <cstdio>
 #include <array>
+#include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -77,6 +78,15 @@ void drawImageByPixels(SDL_Renderer* renderer, const ImageGray& img,
             SDL_RenderPoint(renderer, originX + x, originY + y);
         }
     }
+}
+
+void drawImageByTexture(SDL_Renderer* renderer, SDL_Texture* texture, float x, float y) {
+    if (!renderer || !texture) return;
+
+    float weight, height;
+    SDL_GetTextureSize(texture, &weight, &height);
+    SDL_FRect dst{ x, y, weight, height };
+    SDL_RenderTexture(renderer, texture, nullptr, &dst);
 }
 
 ImageGray toGray(const ImageRGB& img, bool formula) {
@@ -191,6 +201,33 @@ bool loadImageRGB(const std::string& path, ImageRGB& out)
     return true;
 }
 
+SDL_Texture* makeTextureRGB(SDL_Renderer* r, const ImageRGB& img)
+{
+    if (img.empty()) return nullptr;
+    SDL_Texture* t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, img.width, img.height);
+    if (!t) return nullptr;
+    SDL_UpdateTexture(t, nullptr, img.data.data(), img.width * 3);
+    return t;
+}
+
+SDL_Texture* makeTextureGray(SDL_Renderer* r, const ImageGray& img)
+{
+    if (img.empty()) return nullptr;
+    SDL_Texture* t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, img.width, img.height);
+    if (!t) return nullptr;
+
+    std::vector<uint8_t> rgb(static_cast<size_t>(img.width) * img.height * 3);
+    for (size_t i = 0; i < img.data.size(); ++i) {
+        uint8_t v = img.data[i];
+        rgb[i * 3 + 0] = v;
+        rgb[i * 3 + 1] = v;
+        rgb[i * 3 + 2] = v;
+    }
+    SDL_UpdateTexture(t, nullptr, rgb.data(), img.width * 3);
+    return t;
+}
+
+
 // Диалог выбора файла.
 struct FileDialogState
 {
@@ -217,20 +254,36 @@ static void SDLCALL onFileDialogResult(void* userdata,
 
 int main(int, char**)
 {
-    !SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("ImGui Window", 1000, 700,
-        SDL_WINDOW_RESIZABLE);
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        std::cerr << "SDL_Init is failed" << std::endl;
+        return -1;
+    }
+    SDL_Window* window = SDL_CreateWindow("ImGui Window", 1000, 700, SDL_WINDOW_RESIZABLE);
+    if (!window)
+    {
+        std::cerr << "SDL_CreateWindow is failed" << std::endl;
+        return 1;
+    }
+
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer)
+    {
+        std::cerr << "SDL_CreateRenderer is failed" << std::endl;
+        return 1;
+    }
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
-
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
 
     ImageRGB image;
-    SDL_Texture* tex = nullptr;
+    SDL_Texture* texImage = nullptr;
+    SDL_Texture* texImg1 = nullptr;
+    SDL_Texture* texImg2 = nullptr;
+    SDL_Texture* texDiff = nullptr;
+
     FileDialogState dlg;
     bool showWindow2 = false;
 
@@ -242,7 +295,7 @@ int main(int, char**)
         { "All files", "*" }
     };
 
-    bool running = true;
+    bool running (true);
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -255,8 +308,23 @@ int main(int, char**)
         }
 
         if (dlg.ready) {
-            if (dlg.ok)
-                loadImageRGB(dlg.path, image); // Загрузка изображения
+            if (dlg.ok && loadImageRGB(dlg.path, image)) {
+                // Загрузка изображения
+                if (texImage) SDL_DestroyTexture(texImage);
+                if (texImg1)  SDL_DestroyTexture(texImg1);
+                if (texImg2)  SDL_DestroyTexture(texImg2);
+                if (texDiff)  SDL_DestroyTexture(texDiff);
+
+                auto img1 = toGray(image, true);
+                auto img2 = toGray(image, false);
+                auto imgDiff = diffGray(img1, img2);
+
+                texImage = makeTextureRGB(renderer, image);
+                texImg1 = makeTextureGray(renderer, toGray(image, true));
+                texImg2 = makeTextureGray(renderer, toGray(image, false));
+                texDiff = makeTextureGray(renderer, diffGray(img1, img2));
+
+            }
             dlg.reset();
         }
 
@@ -345,20 +413,25 @@ int main(int, char**)
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
         SDL_RenderClear(renderer);
 
-        drawImageByPixels(renderer, image); // Изображение, открытое в главном окне
-
+        //drawImageByPixels(renderer, image); // Изображение, открытое в главном окне
+        drawImageByTexture(renderer, texImage, 0, 0);
 
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         // Изображения в окне, связанном с первым заданием: приведение к оттенкам серого
         if (pendingDrawPos.size() > 0) {
+            drawImageByTexture(renderer, texImg1, pendingDrawPos[0].x, pendingDrawPos[0].y);
+            drawImageByTexture(renderer, texImg2, pendingDrawPos[1].x, pendingDrawPos[1].y);
+            drawImageByTexture(renderer, texDiff, pendingDrawPos[2].x, pendingDrawPos[2].y);
+
+
             auto img1 = toGray(image, true);    // NTSC RGB
             auto img2 = toGray(image, false);   // sRGB
             auto imgDiff = diffGray(img1, img2);// Разница
 
             // Вывод результатов преобразований
-            drawImageByPixels(renderer, img1, pendingDrawPos[0].x, pendingDrawPos[0].y);  
-            drawImageByPixels(renderer, img2, pendingDrawPos[1].x, pendingDrawPos[1].y); 
-            drawImageByPixels(renderer,imgDiff, pendingDrawPos[2].x, pendingDrawPos[2].y);
+            //drawImageByPixels(renderer, img1, pendingDrawPos[0].x, pendingDrawPos[0].y);  
+            //drawImageByPixels(renderer, img2, pendingDrawPos[1].x, pendingDrawPos[1].y); 
+            //drawImageByPixels(renderer,imgDiff, pendingDrawPos[2].x, pendingDrawPos[2].y);
 
             // Гистограммы интенсивности - каждая справа от изображения
 
@@ -385,5 +458,6 @@ int main(int, char**)
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+
     return 0;
 }
