@@ -12,40 +12,68 @@
 #include "image_processing.h"
 #include "dialog_windows.h"
 
-class Task1 {
+// Класс единого контекста, который получает любая задача
+class AppContext {
 public:
-    ImageGray img1, img2, imgDiff;
+    SDL_Renderer* renderer = nullptr;
+    SDL_Window* window = nullptr;
+    const ImageRGB* image = nullptr; // Исходное изображение
+    SDL_Texture* texImage = nullptr; // Текстура исходного изображения
+
+    // Прямоугольник области для ручной отрисовки
+    float originX = 0, originY = 0, areaW = 0.f, areaH = 0;
+};
+
+// Интерфейс класса задачи
+class TaskInterface {
+public:
+    virtual ~TaskInterface() = default;
+
+    // Тяжёлые вычисления 1 раз при 1 открытии задачи
+    virtual void prepare(const AppContext& ctx) = 0;
+
+    // Отрисовка через ImGui (рисует сам ImGui)
+    virtual void drawByTexture(const AppContext& ctx) = 0;
+
+    // Ручная по-пиксельная отрисовка через SDL
+    virtual void drawByPixels(const AppContext& ctx) = 0;
+};
+
+// Класс задачи 1
+class Task1 : public TaskInterface {
+public:
+    // Полутоновые изображения, полученные разными формула
+    ImageGray img1, img2;
+    // Абсолютная разница между texImg1 и texImg2
+    ImageGray imgDiff;
     std::array<int, 256> h1{}, h2{}, hd{}; // Гистограммы для img1 (NTSC), img2 (sRGB) и imgDiff
 
-    // Текстуры полутоновых изображений, полученные разными формулами
+    // Текстуры полутоновых изображений
     SDL_Texture* texImg1 = nullptr;
     SDL_Texture* texImg2 = nullptr;
-    SDL_Texture* texDiff = nullptr; // Абсолютная разница между texImg1 и texImg2
+    SDL_Texture* texDiff = nullptr;
 
-    ~Task1() noexcept;
-
-    // Уничтожает все три текстуры и обнуляет указатели
+    ~Task1() noexcept override;
     void freeTextures() noexcept;
-    // Перевод в оттенки серого двумя формулами
-    // Вычисление разности
-    // Вычисление трёх гистограмм
-    // Создание трёх текстур
-    void prepare(SDL_Renderer* renderer, const ImageRGB& image);
 
-    // Отрисовка Task 1 
-    void draw(const ImageRGB& image) const;
+    void prepare(const AppContext& ctx) override;
+    void drawByTexture(const AppContext& ctx) override;
+    void drawByPixels(const AppContext& ctx) override;
 };
 
-class Task2 {
+class Task2 : public TaskInterface {
 public:
-    ~Task2() noexcept = default;
+    ~Task2() noexcept override = default;
 
-    void prepare(SDL_Renderer* /*renderer*/, const ImageRGB& /*image*/);
-
-    void draw(const ImageRGB& /*image*/) const;
+    void prepare(const AppContext& /*ctx*/) override {}
+    void drawByTexture(const AppContext& /*ctx*/) override
+    {
+        ImGui::TextUnformatted("Task 2 — not implemented");
+    }
+    void drawByPixels(const AppContext& /*ctx*/) override {}
 };
 
-class Task3 {
+class Task3 : public TaskInterface {
 public:
     ImageHSV hsv;
     ImageHSV hsvPreview; // Уменьшенное HSV-изображение (для ускорения работы)
@@ -53,27 +81,23 @@ public:
     ImageRGB applyedPreview; // Уменьшенный RGB-результат
     SDL_Texture* texApplyed = nullptr; // Текстура для applyedPreview
 
-    float hueShift = 0.f;  // Сдвиг оттенка, градусы [-180; 180]
-    float satScale = 1.f;  // Множитель насыщенности [0; 2]
-    float valScale = 1.f;  // Множитель яркости [0; 2]
+    float hueShift = 0, satScale = 1, valScale = 1;  // Сдвиг оттенка, градусы [-180; 180], множитель насыщенности [0; 2], множитель яркости [0; 2]
 
     // Предыдущие значения слайдеров (чтобы не пересчитывать превью зря)
-    float lastH = 1e9f; // Предыдущий hueShift
-    float lastS = 1e9f; // Предыдущий satScale
-    float lastV = 1e9f; // Предыдущий valScale
+    float lastH = 1e9f, lastS = 1e9f, lastV = 1e9f;
 
     SaveDialogState saveDlg; // Состояние диалогового окна сохранения
 
     // Фильтры файлов для диалогового окна сохранения
     static const SDL_DialogFileFilter saveFilters[2];
 
-    ~Task3() noexcept;
-
+    ~Task3() noexcept override;
     void freeTextures() noexcept;
+    void updatePreview(SDL_Renderer* renderer);
+    void prepare(const AppContext& ctx) override;
+    void drawByTexture(const AppContext& ctx) override;
+    void drawByPixels(const AppContext& ctx) override;
 
-    void prepare(SDL_Renderer* /*renderer*/, const ImageRGB& image);
-
-    void draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& image, SDL_Texture* texOriginal);
 };
 
 

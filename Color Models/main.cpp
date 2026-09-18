@@ -19,181 +19,178 @@
 #include "tasks.h"
 #include "dialog_windows.h"
 
-static bool showWindow2 = false; // Флаг открытости окна заданий
-enum class ActiveTask { None, Task1, Task2, Task3 };
-SDL_Window* window;
-SDL_Renderer* renderer;
-SDL_Event eventer;
+static bool showWindow2 (false);   // Флаг открытости окна заданий
+static bool manualDrawing (true);  // Флаг ручной или текстурной отрисовки
+
+enum class ActiveTask { None, Task1, Task2, Task3 }; // Перечисление возможных активных заданий
+
+SDL_Window* window = nullptr; // Указатель на окно
+SDL_Renderer* renderer = nullptr; // Указатель на рендерер для отрисовки
+SDL_Event eventer; // Контролёр событий
 
 int main(int argc, char* argv[])
 {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) { // вызов SDL-подсистемы
         std::cerr << "SDL_Init failed" << std::endl;
         return -1;
     }
 
-    window = SDL_CreateWindow("ImGui Window", 1000, 700, SDL_WINDOW_RESIZABLE);
-    if (!window)
-    {
-        std::cerr << "SDL_CreateWindow failed" << std::endl;
-        return 1;
-    }
+    window = SDL_CreateWindow("ImGui Window", 1000, 700, SDL_WINDOW_RESIZABLE); // Создание окна
+    if (!window) { std::cerr << "SDL_CreateWindow failed" << std::endl; return 1; }
 
-    renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer)
-    {
-        std::cerr << "SDL_CreateRenderer failed" << std::endl;
-        return 1;
-    }
+    renderer = SDL_CreateRenderer(window, nullptr); // Создание рендерера
+    if (!renderer) { std::cerr << "SDL_CreateRenderer failed" << std::endl; return 1; }
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 1;
-    ImGui::GetStyle().Colors[ImGuiCol_ChildBg].w = 1;
+    IMGUI_CHECKVERSION(); // Gроверки версий файлов .h библиотеки ImGUI
+    ImGui::CreateContext(); // Создание глобального контекста для отрисовки
+    ImGui::StyleColorsDark(); // Установка тёмного стиля
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
-    ImGui_ImplSDLRenderer3_Init(renderer);
+    ImGui_ImplSDLRenderer3_Init(renderer); // Dызов слоя, отвечающего за отрисовку в ImGUI
 
-    ImGuiIO& io = ImGui::GetIO(); // Глобальный ввод-вывод
+    ImGuiIO& io = ImGui::GetIO(); // Получение глобального объекта ввода-вывода (для контроля текущего состояния программы)
 
-    ImageRGB image;
-    SDL_Texture* texImage = nullptr;
-    
-    Task1* task1 = nullptr;
-    Task2* task2 = nullptr;
-    Task3* task3 = nullptr;
+    ImageRGB image; // Изображение, загруженное в RAM
+    SDL_Texture* texImage = nullptr; // Текстура загруженного изображения
 
-    FileDialogState dlg; // Диалоговое окно выбора файла
-    ActiveTask activeTask = ActiveTask::None;
-    const SDL_DialogFileFilter filters[] = { { "Images", "png;jpg;jpeg;bmp;tga;gif;psd;hdr;pic;pnm" }, { "All files", "*" } }; // Флаги диалогового окна
-    bool running(true); // Флаг работы программы
+    TaskInterface* currentTask = nullptr; // Текущая активная задача
+    ActiveTask activeTask = ActiveTask::None; // Тип текущей активной задачи
 
-    while (running) {
-        while (SDL_PollEvent(&eventer)) {
+    FileDialogState dlg; // Диалоговое окно для выбора загрузки файла
+    const SDL_DialogFileFilter filters[2] = {
+        { "Images", "png;jpg;jpeg;bmp;tga;gif;psd;hdr;pic;pnm" },
+        { "All files", "*" } };
+
+    bool running (true); // Флаг работы программы
+
+    // Область ручной отрисовки главного изображения
+    ImVec2 mainOrigin{ 0, 0 }; // Текущая позиция курсора ImGui
+    ImVec2 mainArea{ 0, 0 }; // Текущее занятое пространство
+    bool mainManualDrawRequested (false);
+
+    // Область ручной отрисовки задачи
+    ImVec2 manualOrigin{ 0, 0 }; // Текущая позиция курсора ImGui
+    ImVec2 manualArea{ 0, 0 }; // Текущее занятое пространство
+    bool taskManualDrawRequested (false);
+
+    while (running) { // Пока не закрыли программу
+        while (SDL_PollEvent(&eventer)) { // Контроль событий
             ImGui_ImplSDL3_ProcessEvent(&eventer);
-            if (eventer.type == SDL_EVENT_QUIT) // Обработка события того, что приложение закрывается
-                running = false;
+            if (eventer.type == SDL_EVENT_QUIT) running = false;
         }
 
-        if (dlg.ready) { // Диалог закрылся
-            if (dlg.ok && loadImageRGB(dlg.path, image)) { // Файл выбран и успешно загружен
-
-                // Освобождение старых текстур
+        // Загрузка изображения
+        if (dlg.ready) { // Диалоговое окно закрылось
+            if (dlg.ok && loadImageRGB(dlg.path, image)) { // Пользователь выбрал файл, и он был успешно загружен
                 if (texImage) SDL_DestroyTexture(texImage);
                 texImage = makeTextureRGB(renderer, image);
 
-                delete task1; task1 = nullptr;
-                delete task2; task2 = nullptr;
-                delete task3; task3 = nullptr;
-
+                delete currentTask;  currentTask = nullptr;
                 showWindow2 = false;
                 activeTask = ActiveTask::None;
             }
-            dlg.reset();
+            dlg.reset(); // Сброс диалогового окна
         }
 
-        if (task3 && task3->saveDlg.ready) {
-            if (task3->saveDlg.ok && !task3->applyed.empty()) {
-                if (!saveImagePNG(task3->saveDlg.path, task3->applyed))
-                    std::cerr << "Save PNG failed: " << task3->saveDlg.path << std::endl;
+        // Обработка сохранения (только для задания 3)
+        if (auto* t3 = dynamic_cast<Task3*>(currentTask)) {
+            if (t3->saveDlg.ready) { // Диалоговое окно закрылось
+                if (t3->saveDlg.ok && !t3->applyed.empty()) { // Пользователь выбрал файл, и он был успешно сохранён
+                    if (!saveImagePNG(t3->saveDlg.path, t3->applyed))
+                        std::cerr << "Save PNG failed: " << t3->saveDlg.path << std::endl;
+                }
+                t3->saveDlg.reset(); // Сброс диалогового окна
             }
-            task3->saveDlg.reset();
         }
 
+        mainManualDrawRequested = taskManualDrawRequested = false;
 
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
+        ImGui_ImplSDLRenderer3_NewFrame(); // Подготовка внутренних буферов рендера ImGui
+        ImGui_ImplSDL3_NewFrame(); // Передача накопленных событий ввода и актуализация состояния мыши/клавиатуры
+        ImGui::NewFrame(); // Создание нового кадра, в течение которого формируется список виджетов
 
-        // Панель и кнопки
-        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+        // Отрисовка главного окна
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always); // 10 пикселей от левого верхнего угла окна
         ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x - 20, io.DisplaySize.y - 20), ImGuiCond_Always);
-
         ImGui::Begin("Color Models", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
 
-        const float buttonPanelW = 260;
-        ImVec2 contentAvail = ImGui::GetContentRegionAvail();
+        const float buttonPanelW = 260; // Ширина правой панели с кнопками
+        ImVec2 contentAvail = ImGui::GetContentRegionAvail(); // Сколько места сейчас доступно внутри главного окна — ширина и высота в пикселях
 
-        // Левая область - отображение загруженного изображения
+        // Левая область — изображение
         ImGui::BeginChild("##image_area", ImVec2(contentAvail.x - buttonPanelW - 10, 0), true);
 
-        if (!image.empty() && texImage) {
-            ImVec2 avail = ImGui::GetContentRegionAvail();
-            float scale = std::min(avail.x / image.width, avail.y / image.height);
-            ImVec2 sz(image.width * scale, image.height * scale);
+        if (!image.empty() && texImage) { // Есть ли что рисовать
+            // Расчёт масштаба и размеров
+            ImVec2 avail = ImGui::GetContentRegionAvail(); // Сколько свободного места внутри текущей child-области
+            float scale = std::min(avail.x / image.width, avail.y / image.height); // Коэффициент вписывания с сохранением пропорций
+            ImVec2 sz(image.width * scale, image.height * scale); // Реальный размер, в который картинка будет выведена с сохранением пропорций
 
+            // Центрирование
             ImVec2 pos = ImGui::GetCursorPos();
-            ImGui::SetCursorPos(ImVec2(pos.x + (avail.x - sz.x) * 0.5f,  pos.y + (avail.y - sz.y) * 0.5f));
-            ImGui::Image((ImTextureID)(intptr_t)texImage, sz);
+            ImGui::SetCursorPos(ImVec2(
+                pos.x + (avail.x - sz.x) * 0.5,
+                pos.y + (avail.y - sz.y) * 0.5));
+
+            if (manualDrawing) {
+                mainOrigin = ImGui::GetCursorScreenPos();
+                mainArea = sz;
+                mainManualDrawRequested = true;
+                ImGui::Dummy(sz);
+            }
+            else ImGui::Image((ImTextureID)(intptr_t)texImage, sz);
         }
-        else {
-            ImGui::TextUnformatted("Load an image to see it here");
-        }
+        else ImGui::TextUnformatted("Load an image to see it here");
 
         ImGui::EndChild();
 
-        // Правая область - кнопки
         ImGui::SameLine();
+
+        // Правая область — кнопки
         ImGui::BeginChild("##button_panel", ImVec2(buttonPanelW, 0), true);
 
         if (ImGui::Button("load image")) {
             if (!dlg.pending) {
                 dlg.pending = true;
-                SDL_ShowOpenFileDialog(
-                    onFileDialogResult, &dlg, window,
-                    filters,
-                    static_cast<int>(sizeof(filters) / sizeof(filters[0])),
+                SDL_ShowOpenFileDialog(onFileDialogResult, &dlg, window,
+                    filters, static_cast<int>(sizeof(filters) / sizeof(filters[0])),
                     nullptr, false);
             }
         }
 
-        if (ImGui::Button("Task 1")) {
-            delete task1; task1 = nullptr;
-            delete task2; task2 = nullptr;
-            delete task3; task3 = nullptr;
+        // Формирование контекста задачи
+        AppContext ctx;
+        ctx.renderer = renderer;
+        ctx.window = window;
+        ctx.image = &image;
+        ctx.texImage = texImage;
 
-            if (!image.empty()) {
-                task1 = new Task1();
-                task1->prepare(renderer, image);
-            }
-
+        if (ImGui::Button("Task 1")) { // Кнопка Task 1 нажата
+            delete currentTask;
+            currentTask = image.empty() ? nullptr : new Task1();
             activeTask = ActiveTask::Task1;
             showWindow2 = true;
+            if (currentTask) currentTask->prepare(ctx);
         }
-        if (ImGui::Button("Task 2")) {
-            delete task1; task1 = nullptr;
-            delete task2; task2 = nullptr;
-            delete task3; task3 = nullptr;
-
-            if (!image.empty()) {
-                task2 = new Task2();
-                task2->prepare(renderer, image);
-            }
-
-
+        if (ImGui::Button("Task 2")) { // Кнопка Task 2 нажата
+            delete currentTask;
+            currentTask = image.empty() ? nullptr : new Task2();
             activeTask = ActiveTask::Task2;
             showWindow2 = true;
+            if (currentTask) currentTask->prepare(ctx);
         }
-        if (ImGui::Button("Task 3")) {
-            delete task1; task1 = nullptr;
-            delete task2; task2 = nullptr;
-            delete task3; task3 = nullptr;
-
-            if (!image.empty()) {
-                task3 = new Task3();
-                task3->prepare(renderer, image);
-            }
-
-
+        if (ImGui::Button("Task 3")) { // Кнопка Task 3 нажата
+            delete currentTask;
+            currentTask = image.empty() ? nullptr : new Task3();
             activeTask = ActiveTask::Task3;
             showWindow2 = true;
+            if (currentTask) currentTask->prepare(ctx);
         }
-
 
         ImGui::EndChild();
         ImGui::End();
 
+        // Установка окна задачи
         if (showWindow2) {
             const char* title =
                 activeTask == ActiveTask::Task1 ? "Task 1" :
@@ -204,27 +201,18 @@ int main(int argc, char* argv[])
             ImGui::SetNextWindowSize(ImVec2(700, 800), ImGuiCond_FirstUseEver);
             ImGui::Begin(title, &showWindow2, ImGuiWindowFlags_HorizontalScrollbar);
 
-            switch (activeTask) {
-            case ActiveTask::Task1:
-                if (task1) task1->draw(image);
-                else       ImGui::TextUnformatted("Load an image first");
-                break;
+            if (!currentTask) ImGui::TextUnformatted("Load an image first");
+            else if (manualDrawing && currentTask) {
+                manualOrigin = ImGui::GetCursorScreenPos();
+                manualArea = ImGui::GetContentRegionAvail();
+                taskManualDrawRequested = true;
 
-            case ActiveTask::Task2:
-                if (task2) task2->draw(image);
-                else       ImGui::TextUnformatted("Load an image first");
-                break;
+                ImGui::Dummy(manualArea);
 
-            case ActiveTask::Task3:
-                if (task3) task3->draw(renderer, window, image, texImage);
-                else       ImGui::TextUnformatted("Load an image first");
-                break;
-
-            case ActiveTask::None:
-            default:
-                ImGui::TextUnformatted("No task selected");
-                break;
+                if (auto* t3 = dynamic_cast<Task3*>(currentTask))
+                    t3->updatePreview(renderer);
             }
+            else currentTask->drawByTexture(ctx);
 
             ImGui::End();
         }
@@ -235,13 +223,28 @@ int main(int argc, char* argv[])
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 
+        // Отрисовка загруженного изображения
+        if (mainManualDrawRequested && !image.empty()) {
+            drawImageRGBByPixels(renderer, image,
+                mainOrigin.x, mainOrigin.y,
+                mainArea.x, mainArea.y);
+        }
+
+        // Отрисовка окна задачи
+        if (taskManualDrawRequested && currentTask) {
+            ctx.originX = manualOrigin.x;
+            ctx.originY = manualOrigin.y;
+            ctx.areaW = manualArea.x;
+            ctx.areaH = manualArea.y;
+
+            currentTask->drawByPixels(ctx);
+        }
+
         SDL_RenderPresent(renderer);
         SDL_Delay(10);
     }
 
-    delete task1;
-    delete task2;
-    delete task3;
+    delete currentTask;
 
     if (texImage) SDL_DestroyTexture(texImage);
 

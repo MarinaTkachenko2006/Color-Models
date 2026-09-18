@@ -251,7 +251,7 @@ std::array<int, 256> intensityHistogram(const ImageGray& img)
 }
 
 // Отрисовка гистограммы
-void drawHist(ImDrawList* dl, ImVec2 origin, ImVec2 size, const std::array<int, 256>& hgt, ImU32 color)
+void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const std::array<int, 256>& hgt, ImU32 color)
 {
     int maxH = 0;
     for (int v : hgt) if (v > maxH) maxH = v;
@@ -333,4 +333,42 @@ bool saveImagePNG(const std::string& path, const ImageRGB& img)
     if (img.empty()) return false;
     return stbi_write_png(path.c_str(), img.width, img.height, 3,
         img.data.data(), img.width * 3) != 0;
+}
+
+void drawImageRGBByPixels(SDL_Renderer* renderer, const ImageRGB& img,
+    float originX, float originY,
+    float areaW, float areaH)
+{
+    if (img.empty()) return;
+    if (areaW < 1.f || areaH < 1.f) return;
+
+    // Обрезаем всё, что вылезает за границы области
+    SDL_Rect clip{
+        (int)originX, (int)originY,
+        (int)areaW,   (int)areaH
+    };
+    SDL_SetRenderClipRect(renderer, &clip);
+
+    float s = std::min(areaW / (float)img.width,
+        areaH / (float)img.height);
+    float dw = img.width * s;
+    float dh = img.height * s;
+    float dx = originX + (areaW - dw) * 0.5f;
+    float dy = originY + (areaH - dh) * 0.5f;
+
+    for (int py = 0; py < (int)dh; ++py) {
+        int sy = (int)(py / s);
+        if (sy >= img.height) sy = img.height - 1;
+
+        for (int px = 0; px < (int)dw; ++px) {
+            int sx = (int)(px / s);
+            if (sx >= img.width) sx = img.width - 1;
+
+            const uint8_t* p = img.at(sx, sy);
+            SDL_SetRenderDrawColor(renderer, p[0], p[1], p[2], 255);
+            SDL_RenderPoint(renderer, dx + px, dy + py);
+        }
+    }
+
+    SDL_SetRenderClipRect(renderer, nullptr);
 }

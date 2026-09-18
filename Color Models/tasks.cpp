@@ -4,7 +4,6 @@
 #include "tasks.h"
 #include "dialog_windows.h"
 
-const SDL_DialogFileFilter Task3::saveFilters[2] = { { "PNG", "png"}, { "All files", "*"} };
 Task1::~Task1() noexcept { freeTextures(); }
 // Уничтожает все три текстуры и обнуляет указатели
 void Task1::freeTextures() noexcept {
@@ -16,8 +15,12 @@ void Task1::freeTextures() noexcept {
 // Вычисление разности
 // Вычисление трёх гистограмм
 // Создание трёх текстур
-void Task1::prepare(SDL_Renderer* renderer, const ImageRGB& image) { // Выполняется 1 раз при 1 открытии Task 1
+void Task1::prepare(const AppContext& ctx) { // Выполняется 1 раз при 1 открытии Task 1
+    if (!ctx.renderer || !ctx.image || ctx.image->empty()) return;
+
     freeTextures();
+
+    const ImageRGB& image = *ctx.image;
 
     img1 = RGBtoGray(image, true);
     img2 = RGBtoGray(image, false);
@@ -27,24 +30,26 @@ void Task1::prepare(SDL_Renderer* renderer, const ImageRGB& image) { // Выпо
     h2 = intensityHistogram(img2);
     hd = intensityHistogram(imgDiff);
 
-    texImg1 = makeTextureGray(renderer, img1);
-    texImg2 = makeTextureGray(renderer, img2);
-    texDiff = makeTextureGray(renderer, imgDiff);
+    texImg1 = makeTextureGray(ctx.renderer, img1);
+    texImg2 = makeTextureGray(ctx.renderer, img2);
+    texDiff = makeTextureGray(ctx.renderer, imgDiff);
 }
 // Отрисовка Task1
-void Task1::draw(const ImageRGB& image) const {
+void Task1::drawByTexture(const AppContext& ctx) {
+    if (!ctx.image) return;
+
+    const ImageRGB& image = *ctx.image;
+
     SDL_Texture* texs[3] = { texImg1, texImg2, texDiff };
     const std::array<int, 256>* hists[3] = { &h1, &h2, &hd };
     const char* labels[3] = {
         "NTSC (0.299 / 0.587 / 0.114)",
         "sRGB (0.2126 / 0.7152 / 0.0722)",
-        "Difference (normalized)"
-    };
+        "Difference (normalized)" };
     ImU32 histColors[3] = {
         IM_COL32(255, 255, 255, 255),
         IM_COL32(255, 255, 255, 255),
-        IM_COL32(180, 180, 255, 255)
-    };
+        IM_COL32(180, 180, 255, 255) };
 
     const float gap = 8.0f;
     const float rowH = 20.0f;
@@ -64,8 +69,8 @@ void Task1::draw(const ImageRGB& image) const {
         ImGui::TextUnformatted(labels[k]);
         ImGui::BeginGroup();
 
-        float texW = (float)image.width;
-        float texH = (float)image.height;
+        float texW = image.width;
+        float texH = image.height;
         float s = std::min(imgSize.x / texW, imgSize.y / texH);
         ImVec2 drawSz(texW * s, texH * s);
 
@@ -82,23 +87,106 @@ void Task1::draw(const ImageRGB& image) const {
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRect(histPos, ImVec2(histPos.x + histSize.x, histPos.y + histSize.y), IM_COL32(120, 120, 120, 255));
-        drawHist(dl, histPos, histSize, *hists[k], histColors[k]);
+        drawHistogramByTexture(dl, histPos, histSize, *hists[k], histColors[k]);
 
         ImGui::EndGroup();
         ImGui::Separator();
     }
 }
 
-void Task2::prepare(SDL_Renderer* /*renderer*/, const ImageRGB& /*image*/) {}
-void Task2::draw(const ImageRGB& /*image*/) const { // TODO
+void Task1::drawByPixels(const AppContext& ctx) {
+    if (!ctx.renderer) return;
+    if (img1.empty() || img2.empty() || imgDiff.empty()) return;
+
+    SDL_Renderer* renderer = ctx.renderer;
+    float originX = ctx.originX;
+    float originY = ctx.originY;
+    float areaW = ctx.areaW;
+    float areaH = ctx.areaH;
+
+    SDL_Rect clip{ (int)originX, (int)originY, (int)areaW, (int)areaH };
+    SDL_SetRenderClipRect(renderer, &clip);
+
+    const float gap = 8.0f;   // зазор между картинкой и гистограммой
+    const float rowH = 20.0f;  // резерв под подпись
+    const float sepH = 8.0f;   // высота разделителя
+
+    float blockH = (areaH - 3 * (rowH + sepH)) / 3;
+    if (blockH < 40) blockH = 40;
+
+    float blockW = (areaW - gap) * 0.5;
+    if (blockW < 40) blockW = 40;
+
+    const ImageGray* imgs[3] = { &img1, &img2, &imgDiff };
+    const std::array<int, 256>* hists[3] = { &h1, &h2, &hd };
+
+    for (int k = 0; k < 3; ++k) {
+        float blockTop = originY + k * (blockH + rowH + sepH);
+
+        // Отрисовка левого пространства - изображения
+        const ImageGray& im = *imgs[k];
+
+        float s = std::min(blockW / (float)im.width,
+            blockH / (float)im.height);
+        float dw = im.width * s;
+        float dh = im.height * s;
+        float dx = originX + (blockW - dw) * 0.5f;
+        float dy = blockTop + (blockH - dh) * 0.5f;
+
+        for (int py = 0; py < (int)dh; ++py) {
+            int sy = (int)(py / s);
+            if (sy >= im.height) sy = im.height - 1;
+
+            for (int px = 0; px < (int)dw; ++px) {
+                int sx = (int)(px / s);
+                if (sx >= im.width) sx = im.width - 1;
+
+                uint8_t v = *im.at(sx, sy);
+                SDL_SetRenderDrawColor(renderer, v, v, v, 255);
+                SDL_RenderPoint(renderer, dx + px, dy + py);
+            }
+        }
+
+        // Отрисовка правого пространства - гистограммы
+        const std::array<int, 256>& hgt = *hists[k];
+
+        int maxH = 0;
+        for (int v : hgt) if (v > maxH) maxH = v;
+        if (maxH <= 0) continue;
+
+        float scale = blockH / (float)maxH;
+        float hx = originX + blockW + gap;
+        float dxh = blockW / 256.0f;
+
+        Uint8 cr = 255, cg = 255, cb = 255;
+        if (k == 2) { cr = 180; cg = 180; cb = 255; }
+        SDL_SetRenderDrawColor(renderer, cr, cg, cb, 255);
+
+        for (int v = 0; v < 256; ++v) {
+            float xv = hx + (v + 0.5f) * dxh;
+            float barH = hgt[v] * scale;
+            if (barH < 1.0f && hgt[v] > 0) barH = 1.0f;
+
+            for (int py = 0; py < (int)barH; ++py)
+                SDL_RenderPoint(renderer, xv, blockTop + blockH - py);
+        }
+    }
+
+    SDL_SetRenderClipRect(renderer, nullptr);
 }
+
+const SDL_DialogFileFilter Task3::saveFilters[2] = { { "PNG", "png"}, { "All files", "*"} };
 
 Task3::~Task3() noexcept { freeTextures(); }
 void Task3::freeTextures() noexcept { if (texApplyed) { SDL_DestroyTexture(texApplyed); texApplyed = nullptr; } }
-void Task3::prepare(SDL_Renderer* /*renderer*/, const ImageRGB& image) {
+void Task3::prepare(const AppContext& ctx) {
+    if (!ctx.image || ctx.image->empty()) return;
+
     freeTextures();
     applyed.data.clear();
     applyedPreview.data.clear();
+
+    const ImageRGB& image = *ctx.image;
     
     hsv = RGBtoHSV(image);
     ImageRGB preview = downscale(image, 512);
@@ -109,8 +197,32 @@ void Task3::prepare(SDL_Renderer* /*renderer*/, const ImageRGB& image) {
     lastH = lastS = lastV = 1e9;
 }
 
-void Task3::draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& image, SDL_Texture* texOriginal) {
-    if (image.empty() || hsv.empty() || hsvPreview.empty()) {
+void Task3::updatePreview(SDL_Renderer* renderer) {
+    if (!renderer) return;
+    if (hsvPreview.empty()) return;
+
+    if (hueShift != lastH || satScale != lastS || valScale != lastV) {
+        applyedPreview = applyHSV(hsvPreview, hueShift, satScale, valScale);
+
+        if (texApplyed) SDL_DestroyTexture(texApplyed);
+        texApplyed = makeTextureRGB(renderer, applyedPreview);
+
+        lastH = hueShift;
+        lastS = satScale;
+        lastV = valScale;
+    }
+}
+
+
+void Task3::drawByTexture(const AppContext& ctx) {
+    if (!ctx.renderer || !ctx.window || !ctx.image || ctx.image->empty()) {
+        ImGui::TextUnformatted("Load an image first");
+        return;
+    }
+
+    const ImageRGB& image = *ctx.image;
+
+    if (hsv.empty() || hsvPreview.empty()) {
         ImGui::TextUnformatted("Load an image first");
         return;
     }
@@ -125,6 +237,7 @@ void Task3::draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& ima
     ImGui::SetNextItemWidth(400);
     ImGui::SliderFloat("Value scale", &valScale, 0, 2, "%.2f");
     
+    // Кнопка сброса ползунков
     if (ImGui::Button("Reset sliders")) {
         hueShift = 0;
         satScale = valScale = 1;
@@ -132,12 +245,13 @@ void Task3::draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& ima
 
     ImGui::SameLine();
     
-    if (ImGui::Button("Save as PNG...")) { // Полное разрешение — считаем один раз при нажатии
+    // Кнопка сохранения получившегося изображения
+    if (ImGui::Button("Save as PNG...")) {
         applyed = applyHSV(hsv, hueShift, satScale, valScale);
         
         if (!saveDlg.pending) {
             saveDlg.pending = true;
-            SDL_ShowSaveFileDialog(onSaveFileDialogResult, &saveDlg, window, saveFilters, 2, nullptr);
+            SDL_ShowSaveFileDialog(onSaveFileDialogResult, &saveDlg, ctx.window, saveFilters, 2, nullptr);
             }
         }
     ImGui::Separator();
@@ -146,7 +260,7 @@ void Task3::draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& ima
         applyedPreview = applyHSV(hsvPreview, hueShift, satScale, valScale);
 
         if (texApplyed) SDL_DestroyTexture(texApplyed);
-        texApplyed = makeTextureRGB(renderer, applyedPreview);
+        texApplyed = makeTextureRGB(ctx.renderer, applyedPreview);
         
         lastH = hueShift;
         lastS = satScale;
@@ -161,18 +275,69 @@ void Task3::draw(SDL_Renderer* renderer, SDL_Window* window, const ImageRGB& ima
     
     ImGui::BeginGroup();
     ImGui::TextUnformatted("Original");
-    if (texOriginal) {
+    if (ctx.texImage) {
         float s(std::min(halfW / image.width, imgH / image.height));
-        ImGui::Image((ImTextureID)(intptr_t)texOriginal, ImVec2(image.width * s, image.height * s));
+        ImGui::Image((ImTextureID)(intptr_t)ctx.texImage, ImVec2(image.width * s, image.height * s));
     }
     
     ImGui::EndGroup();
     ImGui::SameLine();
     ImGui::BeginGroup();
     ImGui::TextUnformatted("Applyed (HSV)");
+
     if (texApplyed && !applyedPreview.empty()) {
         float s (std::min(halfW / applyedPreview.width, imgH / applyedPreview.height));
         ImGui::Image((ImTextureID)(intptr_t)texApplyed, ImVec2(applyedPreview.width * s, applyedPreview.height * s));
     }
+
     ImGui::EndGroup();
 }
+
+void Task3::drawByPixels(const AppContext& ctx) {
+    if (!ctx.renderer || !ctx.image || ctx.image->empty()) return;
+
+    SDL_Renderer* renderer = ctx.renderer;
+    const ImageRGB& image = *ctx.image;
+
+    if (hsv.empty() || hsvPreview.empty()) return;
+    if (ctx.areaW < 20.f || ctx.areaH < 20.f) return;
+
+    SDL_Rect clip{ (int)ctx.originX, (int)ctx.originY, (int)ctx.areaW, (int)ctx.areaH };
+    SDL_SetRenderClipRect(renderer, &clip);
+
+    // Пересчёт превью сделан в updatePreview(), здесь только отрисовка.
+    const float gap = 10.0f;
+    float halfW = (ctx.areaW - gap) * 0.5f;
+    float imgH = ctx.areaW;
+
+    const ImageRGB* imgs[2] = { &image, &applyedPreview };
+
+    for (int k = 0; k < 2; ++k) {
+        const ImageRGB& im = *imgs[k];
+        if (im.empty()) continue;
+
+        float s = std::min(halfW / (float)im.width,
+            imgH / (float)im.height);
+        float dw = im.width * s;
+        float dh = im.height * s;
+
+        float dx = ctx.originX + k * (halfW + gap);
+        float dy = ctx.originY + (imgH - dh) * 0.5f;
+
+        for (int py = 0; py < (int)dh; ++py) {
+            int sy = (int)(py / s);
+            if (sy >= im.height) sy = im.height - 1;
+
+            for (int px = 0; px < (int)dw; ++px) {
+                int sx = (int)(px / s);
+                if (sx >= im.width) sx = im.width - 1;
+
+                const uint8_t* p = im.at(sx, sy);
+                SDL_SetRenderDrawColor(renderer, p[0], p[1], p[2], 255);
+                SDL_RenderPoint(renderer, dx + px, dy + py);
+            }
+        }
+    }
+    SDL_SetRenderClipRect(renderer, nullptr);
+}
+

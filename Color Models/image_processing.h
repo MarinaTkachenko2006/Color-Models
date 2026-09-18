@@ -36,8 +36,8 @@ ImageRGB applyHSV(const ImageHSV& hsv, float hueShift, float satScale, float val
 // Гистограмма яркости Gray-изображения
 std::array<int, 256> intensityHistogram(const ImageGray& img);
 
-// Отрисовка гистограммы
-void drawHist(ImDrawList* dl, ImVec2 origin, ImVec2 size, const std::array<int, 256>& hgt, ImU32 color);
+// Отрисовка гистограммы при помощи текстуры
+void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const std::array<int, 256>& hgt, ImU32 color);
 
 // Уменьшение изображения (для быстрого выполнения Task 3)
 ImageRGB downscale(const ImageRGB& src, int maxSide);
@@ -50,5 +50,6 @@ SDL_Texture* makeTextureGray(SDL_Renderer* r, const ImageGray& img);
 // Сохранение в PNG
 bool saveImagePNG(const std::string& path, const ImageRGB& img);
 
+void drawImageRGBByPixels(SDL_Renderer* renderer, const ImageRGB& img, float originX, float originY, float areaW, float areaH);
 
 #endif // ! __IMAGE_PROCESSING_IMD_MAR_VIK__

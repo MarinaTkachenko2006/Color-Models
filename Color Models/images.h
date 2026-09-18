@@ -5,44 +5,45 @@
 
 struct PixelHSV { float h = 0, s = 0, v = 0; };  // h = [0;360); s,v =[0;1)
 
-class ImageRGB {
+// Базовый класс изображения
+class Image {
 public:
-    int width = 0; // Ширина изображения
-    int height = 0; // Высота изображения
-    int channels = 0; // Количество каналов
-    std::vector<uint8_t> data; // Вектор битов размера width * height * 3
+    int width = 0, height = 0, channels = 0;
+    Image() = default;
+
+    bool empty() const noexcept;
+    size_t pixelNumber() const noexcept;
+};
+
+// Класс изображения в RGB-моделе
+class ImageRGB : public Image {
+public:
+    std::vector<uint8_t> data; // Вектор байтов размера width * height * 3
 
     ImageRGB() noexcept = default;
 
-    bool empty() const noexcept;
     uint8_t* at(int x, int y);
     const uint8_t* at(int x, int y) const;
 };
 
-class ImageGray {
+// Класс полутонового изображения
+class ImageGray : public Image {
 public:
-    int width = 0; // Ширина изображения
-    int height = 0; // Высота изображения
-    int channels = 0; // Количество каналов
-    std::vector<uint8_t> data; // Вектор битов размера width * height
+    std::vector<uint8_t> data; // Вектор байт размера width * height
 
     ImageGray() noexcept = default;
 
-    bool empty() const noexcept;
     uint8_t* at(int x, int y);
     const uint8_t* at(int x, int y) const;
 };
 
-class ImageHSV
-{
+// Класс изображения в модели HSV
+class ImageHSV : public Image {
 public:
-    int width = 0; // Ширина изображения
-    int height = 0; // Высота изображения
     std::vector<PixelHSV> data; // Вектор HSV-троек
 
     ImageHSV() noexcept = default;
 
-    bool empty() const noexcept;
     PixelHSV& at(int x, int y);
     const PixelHSV& at(int x, int y) const;
 };
