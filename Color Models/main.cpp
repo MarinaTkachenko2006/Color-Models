@@ -31,6 +31,21 @@ struct ImageRGB
     }
 };
 
+// Отображение изображения вручную по пикселям
+void drawImageByPixels(SDL_Renderer* renderer, const ImageRGB& img,
+    float originX = 0.f, float originY = 0.f)
+{
+    if (img.empty()) return;
+
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const uint8_t* p = img.at(x, y);
+            SDL_SetRenderDrawColor(renderer, p[0], p[1], p[2], 255);
+            SDL_RenderPoint(renderer, originX + x, originY + y);
+        }
+    }
+}
+
 bool loadImageRGB(const std::string& path, ImageRGB& out)
 {
     int w = 0, h = 0, srcChannels = 0;
@@ -75,47 +90,11 @@ static void SDLCALL onFileDialogResult(void* userdata,
     st->path = filelist[0];
 }
 
-// ---------------------------------------------------------------------------
-// Пересоздание SDL-текстуры из матрицы.
-// ---------------------------------------------------------------------------
-void updateTexture(SDL_Renderer* renderer, SDL_Texture*& tex,
-    const ImageRGB& image)
-{
-    if (tex) { SDL_DestroyTexture(tex); tex = nullptr; }
-    if (image.empty()) return;
-
-    tex = SDL_CreateTexture(renderer,
-        SDL_PIXELFORMAT_RGB24,
-        SDL_TEXTUREACCESS_STATIC,
-        image.width, image.height);
-    if (!tex) {
-        SDL_Log("SDL_CreateTexture failed: %s", SDL_GetError());
-        return;
-    }
-    SDL_UpdateTexture(tex, nullptr, image.data.data(), image.width * 3);
-}
-
 int main(int, char**)
 {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        SDL_Log("SDL_Init failed: %s", SDL_GetError());
-        return 1;
-    }
-
+    !SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("ImGui Window", 1000, 700, 0);
-    if (!window) {
-        SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
-
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) {
-        SDL_Log("SDL_CreateRenderer failed: %s", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -146,9 +125,8 @@ int main(int, char**)
         }
 
         if (dlg.ready) {
-            if (dlg.ok && loadImageRGB(dlg.path, image)) {
-                updateTexture(renderer, tex, image);
-            }
+            if (dlg.ok)
+                loadImageRGB(dlg.path, image); // Загрузка изображения
             dlg.reset();
         }
 
@@ -156,6 +134,8 @@ int main(int, char**)
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
+
+        // Панель и кнопки
         const float panelW = 260.0f;
         const float panelH = 120.0f;
         ImGuiIO& io = ImGui::GetIO();
@@ -190,31 +170,17 @@ int main(int, char**)
             // TODO: задание 3
         }
 
-        if (dlg.pending)
-            ImGui::TextUnformatted("dialog is open...");
-
-        if (!image.empty())
-            ImGui::Text("size: %d x %d", image.width, image.height);
-
         ImGui::End();
 
         ImGui::Render();
 
+        // Отображение изображения
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
         SDL_RenderClear(renderer);
-
-        if (tex) {
-            SDL_FRect dst{ 0.f, 0.f, (float)image.width, (float)image.height };
-
-            // Библиотечное отображение изображения - поменять на отрисовку вручную???
-            SDL_RenderTexture(renderer, tex, nullptr, &dst);
-        }
-
+        drawImageByPixels(renderer, image); 
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
     }
-
-    if (tex) SDL_DestroyTexture(tex);
 
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
