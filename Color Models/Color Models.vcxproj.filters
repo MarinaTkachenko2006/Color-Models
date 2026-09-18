@@ -45,5 +45,15 @@
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdlrenderer3.cpp">
       <Filter>third_party\imgui\backends</Filter>
     </ClCompile>
+    <ClCompile Include="images.cpp" />
+    <ClCompile Include="image_processing.cpp" />
+    <ClCompile Include="dialog_windows.cpp" />
+    <ClCompile Include="tasks.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="tasks.h" />
+    <ClInclude Include="images.h" />
+    <ClInclude Include="image_processing.h" />
+    <ClInclude Include="dialog_windows.h" />
   </ItemGroup>
 </Project>

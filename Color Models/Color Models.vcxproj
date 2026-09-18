@@ -25,8 +25,18 @@
     <ClCompile Include="..\third_party\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="dialog_windows.cpp" />
+    <ClCompile Include="images.cpp" />
+    <ClCompile Include="image_processing.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="stb_impl.cpp" />
+    <ClCompile Include="tasks.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="dialog_windows.h" />
+    <ClInclude Include="images.h" />
+    <ClInclude Include="image_processing.h" />
+    <ClInclude Include="tasks.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
