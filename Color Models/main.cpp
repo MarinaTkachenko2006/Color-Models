@@ -28,12 +28,31 @@ SDL_Window* window = nullptr; // Указатель на окно
 SDL_Renderer* renderer = nullptr; // Указатель на рендерер для отрисовки
 SDL_Event eventer; // Контролёр событий
 
+struct MainImageCallback // Callback, вызываемый ImGui внутри RenderDrawData
+{
+    const ImageRGB* image = nullptr;
+    SDL_Renderer* renderer = nullptr;
+    ImVec2 origin;
+    ImVec2 area;
+};
+
+static void SDLCALL drawMainImageCallback(const ImDrawList*, const ImDrawCmd* cmd)
+{
+    auto* d = static_cast<MainImageCallback*>(cmd->UserCallbackData);
+    if (!d || !d->image || d->image->empty()) return;
+
+    drawImageRGBByPixels(d->renderer, *d->image,
+        d->origin.x, d->origin.y,
+        d->area.x, d->area.y);
+}
+
 int main(int argc, char* argv[])
 {
     if (!SDL_Init(SDL_INIT_VIDEO)) { // вызов SDL-подсистемы
         std::cerr << "SDL_Init failed" << std::endl;
         return -1;
     }
+    MainImageCallback mainCb;
 
     window = SDL_CreateWindow("ImGui Window", 1000, 700, SDL_WINDOW_RESIZABLE); // Создание окна
     if (!window) { std::cerr << "SDL_CreateWindow failed" << std::endl; return 1; }
@@ -135,8 +154,17 @@ int main(int argc, char* argv[])
             if (manualDrawing) {
                 mainOrigin = ImGui::GetCursorScreenPos();
                 mainArea = sz;
-                mainManualDrawRequested = true;
+
                 ImGui::Dummy(sz);
+
+                // Заполняем данные и просим ImGui вызвать наш callback в нужном слое
+                mainCb.image = &image;
+                mainCb.renderer = renderer;
+                mainCb.origin = mainOrigin;
+                mainCb.area = mainArea;
+
+                ImGui::GetWindowDrawList()->AddCallback(
+                    &drawMainImageCallback, &mainCb);
             }
             else ImGui::Image((ImTextureID)(intptr_t)texImage, sz);
         }
@@ -201,18 +229,29 @@ int main(int argc, char* argv[])
             ImGui::SetNextWindowSize(ImVec2(700, 800), ImGuiCond_FirstUseEver);
             ImGui::Begin(title, &showWindow2, ImGuiWindowFlags_HorizontalScrollbar);
 
-            if (!currentTask) ImGui::TextUnformatted("Load an image first");
-            else if (manualDrawing && currentTask) {
+            if (!currentTask) {
+                ImGui::TextUnformatted("Load an image first");
+            }
+            else if (manualDrawing) {
+                // Контроллеры
+                currentTask->drawControls(ctx);
+
+                // Пересчёт превью
+                currentTask->updatePreview(renderer);
+
+                // Захват оставшегося места под SDL-отрисовку
                 manualOrigin = ImGui::GetCursorScreenPos();
                 manualArea = ImGui::GetContentRegionAvail();
                 taskManualDrawRequested = true;
 
                 ImGui::Dummy(manualArea);
-
-                if (auto* t3 = dynamic_cast<Task3*>(currentTask))
-                    t3->updatePreview(renderer);
             }
-            else currentTask->drawByTexture(ctx);
+            else {
+                // Текстурный режим
+                currentTask->drawControls(ctx);
+                currentTask->updatePreview(renderer);
+                currentTask->drawByTexture(ctx);
+            }
 
             ImGui::End();
         }
@@ -222,13 +261,6 @@ int main(int argc, char* argv[])
         SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-
-        // Отрисовка загруженного изображения
-        if (mainManualDrawRequested && !image.empty()) {
-            drawImageRGBByPixels(renderer, image,
-                mainOrigin.x, mainOrigin.y,
-                mainArea.x, mainArea.y);
-        }
 
         // Отрисовка окна задачи
         if (taskManualDrawRequested && currentTask) {

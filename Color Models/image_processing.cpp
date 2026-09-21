@@ -36,8 +36,6 @@ bool loadImageRGB(const std::string& path, ImageRGB& out)
     return true;
 }
 
-// ---- Методы отрисовки изображений ----
-
 // Отображение RGB-изображения вручную по пикселям (неэффективное)
 void drawImageByPixels(SDL_Renderer* renderer, const ImageRGB& img,
     float originX = 0, float originY = 0) // Смещение на экране
@@ -68,8 +66,6 @@ void drawImageByPixels(SDL_Renderer* renderer, const ImageGray& img,
     }
 }
 
-// ---- Методы преобразований изображений ----
-
 // Преобразование RGB-изображения в Gray-изображение
 ImageGray RGBtoGray(const ImageRGB& img, bool formula) {
     ImageGray imgGr;
@@ -96,7 +92,7 @@ ImageGray RGBtoGray(const ImageRGB& img, bool formula) {
     return imgGr;
 }
 
-// Разница между 2 GRAY-изображениями
+// Разница между 2 Gray-изображениями
 ImageGray diffGray(const ImageGray& img1, const ImageGray& img2) {
     ImageGray imgDiff; // Результат
     imgDiff.channels = 1;
@@ -110,10 +106,8 @@ ImageGray diffGray(const ImageGray& img1, const ImageGray& img2) {
     // Поиск отличий
     for (int y = 0; y < img1.height; ++y) {
         for (int x = 0; x < img1.width; ++x) {
-            int diff = std::abs(static_cast<int>(*img1.at(x, y)) -
-                static_cast<int>(*img2.at(x, y)));
-            imgDiff.data[static_cast<size_t>(y) * imgDiff.width + x] =
-                static_cast<uint8_t>(diff);
+            int diff = std::abs(static_cast<int>(*img1.at(x, y)) - static_cast<int>(*img2.at(x, y)));
+            imgDiff.data[static_cast<size_t>(y) * imgDiff.width + x] = static_cast<uint8_t>(diff);
             if (diff < minDiff) minDiff = diff;
             if (diff > maxDiff) maxDiff = diff;
         }
@@ -257,12 +251,12 @@ void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const st
     for (int v : hgt) if (v > maxH) maxH = v;
     if (maxH == 0 || size.x <= 0 || size.y <= 0) return;
 
-    float baseY = origin.y + size.y;
+    float baseY = origin.y + size.y; // Y-координата основания столбиков
     float scale = size.y / static_cast<float>(maxH);
     float dx = size.x / 256.0f;
 
     for (int v = 0; v < 256; ++v) {
-        float xv = origin.x + (v + 0.5f) * dx;
+        float xv = origin.x + (v + 0.5f) * dx; // X-координата линии для яркости v
         float barH = hgt[v] * scale;
         if (barH < 1 && hgt[v] > 0) barH = 1;
         dl->AddLine(ImVec2(xv, baseY), ImVec2(xv, baseY - barH), color);
@@ -270,12 +264,12 @@ void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const st
 }
 
 // Уменьшение изображения (для быстрого выполнения Task 3)
+// Уменьшает изображение так, чтобы длинная сторона стала не больше, чем maxSide, с сохранением пропорций
 ImageRGB downscale(const ImageRGB& src, int maxSide)
 {
     if (src.width <= maxSide && src.height <= maxSide) return src;
 
-    float scale = std::min((float)maxSide / src.width,
-        (float)maxSide / src.height);
+    float scale = std::min((float)maxSide / src.width, (float)maxSide / src.height);
     int nw = std::max(1, (int)(src.width * scale));
     int nh = std::max(1, (int)(src.height * scale));
 
@@ -283,15 +277,19 @@ ImageRGB downscale(const ImageRGB& src, int maxSide)
     dst.width = nw;
     dst.height = nh;
     dst.channels = 3;
-    dst.data.resize((size_t)nw * nh * 3);
+    dst.data.resize(nw * nh * 3);
 
     for (int y = 0; y < nh; ++y) {
         int sy = (int)((float)y * src.height / nh);
+
         for (int x = 0; x < nw; ++x) {
             int sx = (int)((float)x * src.width / nw);
+
             const uint8_t* p = src.at(sx, sy);
-            uint8_t* q = &dst.data[((size_t)y * nw + x) * 3];
-            q[0] = p[0]; q[1] = p[1]; q[2] = p[2];
+            uint8_t* q = &dst.data[(y * nw + x) * 3];
+            q[0] = p[0];
+            q[1] = p[1];
+            q[2] = p[2];
         }
     }
     return dst;
@@ -325,8 +323,6 @@ SDL_Texture* makeTextureGray(SDL_Renderer* r, const ImageGray& img)
     return t;
 }
 
-// ---- Методы выполнения заданий ----
-
 // Сохранение в PNG
 bool saveImagePNG(const std::string& path, const ImageRGB& img)
 {
@@ -343,10 +339,7 @@ void drawImageRGBByPixels(SDL_Renderer* renderer, const ImageRGB& img,
     if (areaW < 1.f || areaH < 1.f) return;
 
     // Обрезаем всё, что вылезает за границы области
-    SDL_Rect clip{
-        (int)originX, (int)originY,
-        (int)areaW,   (int)areaH
-    };
+    SDL_Rect clip{(int)originX, (int)originY, (int)areaW, (int)areaH };
     SDL_SetRenderClipRect(renderer, &clip);
 
     float s = std::min(areaW / (float)img.width,

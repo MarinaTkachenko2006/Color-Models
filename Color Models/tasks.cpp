@@ -221,51 +221,6 @@ void Task3::drawByTexture(const AppContext& ctx) {
     }
 
     const ImageRGB& image = *ctx.image;
-
-    if (hsv.empty() || hsvPreview.empty()) {
-        ImGui::TextUnformatted("Load an image first");
-        return;
-    }
-
-    ImGui::TextUnformatted("HSV correction:");
-    
-    // Ползунки для HSV
-    ImGui::SetNextItemWidth(400);
-    ImGui::SliderFloat("Hue shift (degrees)", &hueShift, -180, 180, "%.0f");
-    ImGui::SetNextItemWidth(400);
-    ImGui::SliderFloat("Saturation scale", &satScale, 0, 2, "%.2f");
-    ImGui::SetNextItemWidth(400);
-    ImGui::SliderFloat("Value scale", &valScale, 0, 2, "%.2f");
-    
-    // Кнопка сброса ползунков
-    if (ImGui::Button("Reset sliders")) {
-        hueShift = 0;
-        satScale = valScale = 1;
-    }
-
-    ImGui::SameLine();
-    
-    // Кнопка сохранения получившегося изображения
-    if (ImGui::Button("Save as PNG...")) {
-        applyed = applyHSV(hsv, hueShift, satScale, valScale);
-        
-        if (!saveDlg.pending) {
-            saveDlg.pending = true;
-            SDL_ShowSaveFileDialog(onSaveFileDialogResult, &saveDlg, ctx.window, saveFilters, 2, nullptr);
-            }
-        }
-    ImGui::Separator();
-    
-    if (hueShift != lastH || satScale != lastS || valScale != lastV) {
-        applyedPreview = applyHSV(hsvPreview, hueShift, satScale, valScale);
-
-        if (texApplyed) SDL_DestroyTexture(texApplyed);
-        texApplyed = makeTextureRGB(ctx.renderer, applyedPreview);
-        
-        lastH = hueShift;
-        lastS = satScale;
-        lastV = valScale;
-    }
     
     ImVec2 avail = ImGui::GetContentRegionAvail();
     float halfW = (avail.x - 10) * 0.5;
@@ -300,7 +255,7 @@ void Task3::drawByPixels(const AppContext& ctx) {
     const ImageRGB& image = *ctx.image;
 
     if (hsv.empty() || hsvPreview.empty()) return;
-    if (ctx.areaW < 20.f || ctx.areaH < 20.f) return;
+    if (ctx.areaW < 20.0f || ctx.areaH < 20.0f) return;
 
     SDL_Rect clip{ (int)ctx.originX, (int)ctx.originY, (int)ctx.areaW, (int)ctx.areaH };
     SDL_SetRenderClipRect(renderer, &clip);
@@ -308,7 +263,7 @@ void Task3::drawByPixels(const AppContext& ctx) {
     // Пересчёт превью сделан в updatePreview(), здесь только отрисовка.
     const float gap = 10.0f;
     float halfW = (ctx.areaW - gap) * 0.5f;
-    float imgH = ctx.areaW;
+    float imgH = ctx.areaH;
 
     const ImageRGB* imgs[2] = { &image, &applyedPreview };
 
@@ -341,3 +296,37 @@ void Task3::drawByPixels(const AppContext& ctx) {
     SDL_SetRenderClipRect(renderer, nullptr);
 }
 
+void Task3::drawControls(const AppContext& ctx)
+{
+    if (hsv.empty() || hsvPreview.empty()) return;
+
+    ImGui::TextUnformatted("HSV correction:");
+
+    ImGui::SetNextItemWidth(400);
+    ImGui::SliderFloat("Hue shift (degrees)", &hueShift, -180.0f, 180.0f, "%.0f");
+    ImGui::SetNextItemWidth(400);
+    ImGui::SliderFloat("Saturation scale", &satScale, 0.0f, 2.0f, "%.2f");
+    ImGui::SetNextItemWidth(400);
+    ImGui::SliderFloat("Value scale", &valScale, 0.0f, 2.0f, "%.2f");
+
+    if (ImGui::Button("Reset sliders")) {
+        hueShift = 0.0f;
+        satScale = 1.0f;
+        valScale = 1.0f;
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Save as PNG...")) {
+        // Полное разрешение — считаем один раз по нажатию
+        applyed = applyHSV(hsv, hueShift, satScale, valScale);
+
+        if (!saveDlg.pending) {
+            saveDlg.pending = true;
+            SDL_ShowSaveFileDialog(onSaveFileDialogResult, &saveDlg,
+                ctx.window, saveFilters, 2, nullptr);
+        }
+    }
+
+    ImGui::Separator();
+}

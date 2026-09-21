@@ -1,6 +1,3 @@
-
-
-
 #include "dialog_windows.h"
 
 void FileDialogState::reset() noexcept { ready = false; ok = false; path.clear(); }
