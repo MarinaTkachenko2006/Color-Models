@@ -3,6 +3,7 @@
 
 #include "tasks.h"
 #include "dialog_windows.h"
+#include <cstdint>
 
 Task1::~Task1() noexcept { freeTextures(); }
 // Уничтожает все три текстуры и обнуляет указатели
@@ -87,7 +88,18 @@ void Task1::drawByTexture(const AppContext& ctx) {
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRect(histPos, ImVec2(histPos.x + histSize.x, histPos.y + histSize.y), IM_COL32(120, 120, 120, 255));
+        
+        bool hasData = false;
+        for (int v : *hists[k]) {
+            if (v > 0) { hasData = true; break; }
+        }
+        
+        if (hasData) {
         drawHistogramByTexture(dl, histPos, histSize, *hists[k], histColors[k]);
+        } else {
+            ImGui::SetCursorScreenPos(ImVec2(histPos.x + histSize.x * 0.3f, histPos.y + histSize.y * 0.4f));
+            ImGui::TextUnformatted("No data");
+        }
 
         ImGui::EndGroup();
         ImGui::Separator();
@@ -176,6 +188,205 @@ void Task1::drawByPixels(const AppContext& ctx) {
 }
 
 const SDL_DialogFileFilter Task3::saveFilters[2] = { { "PNG", "png"}, { "All files", "*"} };
+
+// ===== Task2 =====
+// Уничтожает все три текстуры и обнуляет указатели
+Task2::~Task2() noexcept { freeTextures(); }
+
+void Task2::freeTextures() noexcept {
+    if (texR) { SDL_DestroyTexture(texR); texR = nullptr; }
+    if (texG) { SDL_DestroyTexture(texG); texG = nullptr; }
+    if (texB) { SDL_DestroyTexture(texB); texB = nullptr; }
+}
+
+// Выделение каналов R, G, B
+// Создание трёх текстур
+void Task2::prepare(const AppContext& ctx) {
+    if (!ctx.renderer || !ctx.image || ctx.image->empty()) return;
+
+    freeTextures();
+
+    const ImageRGB& image = *ctx.image;
+
+    imgR = extractChannelR(image);
+    imgG = extractChannelG(image);
+    imgB = extractChannelB(image);
+
+    histR = histogramChannelR(image);
+    histG = histogramChannelG(image);
+    histB = histogramChannelB(image);
+
+    texR = makeTextureRGB(ctx.renderer, imgR);
+    texG = makeTextureRGB(ctx.renderer, imgG);
+    texB = makeTextureRGB(ctx.renderer, imgB);
+}
+
+// Отрисовка Task2
+void Task2::drawByTexture(const AppContext& ctx) {
+    if (!ctx.image) return;
+
+    const ImageRGB& image = *ctx.image;
+
+    // пересчёт при необходимости
+    bool needsRecalc = true;
+    for (int v : histR) if (v > 0) { needsRecalc = false; break; }
+    if (needsRecalc) {
+        histR = histogramChannelR(image);
+        histG = histogramChannelG(image);
+        histB = histogramChannelB(image);
+    }
+
+    SDL_Texture* texs[3] = { texR, texG, texB };
+    const char* labels[3] = { "Red channel", "Green channel", "Blue channel" };
+    ImU32 histColors[3] = {
+        IM_COL32(255, 0, 0, 255),
+        IM_COL32(0, 255, 0, 255),
+        IM_COL32(0, 0, 255, 255)
+    };
+    std::array<int, 256>* hists[3] = { &histR, &histG, &histB };
+
+    const float gap = 8.0f;
+    const float rowH = 20.0f;
+    const float sepH = 8.0f;
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    float blockH = (avail.y - 3.0f * (rowH + sepH)) / 3.0f;
+    if (blockH < 40.0f) blockH = 40.0f;
+    float blockW = (avail.x - gap) * 0.5f;
+    if (blockW < 40.0f) blockW = 40.0f;
+
+    ImVec2 imgSize(blockW, blockH);
+    ImVec2 histSize(blockW, blockH);
+
+    for (int k = 0; k < 3; ++k) {
+        ImGui::TextUnformatted(labels[k]);
+        ImGui::BeginGroup();
+
+        float texW = (float)image.width;
+        float texH = (float)image.height;
+        float s = std::min(imgSize.x / texW, imgSize.y / texH);
+        ImVec2 drawSz(texW * s, texH * s);
+
+        ImVec2 p = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(ImVec2(p.x + (imgSize.x - drawSz.x) * 0.5f,
+                                   p.y + (imgSize.y - drawSz.y) * 0.5f));
+        ImGui::Image((ImTextureID)(intptr_t)texs[k], drawSz);
+
+        // принудительно ставим курсор на правый край блока изображения
+        ImGui::SetCursorPos(ImVec2(p.x + imgSize.x, p.y));
+        ImGui::SameLine(0, gap);
+
+        ImVec2 histPos = ImGui::GetCursorScreenPos();
+        ImGui::Dummy(histSize);
+
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->AddRect(histPos,
+                    ImVec2(histPos.x + histSize.x, histPos.y + histSize.y),
+                    IM_COL32(120, 120, 120, 255));
+
+        bool hasData = false;
+        for (int v : *hists[k]) if (v > 0) { hasData = true; break; }
+
+        if (hasData)
+            drawHistogramByTexture(dl, histPos, histSize, *hists[k], histColors[k]);
+        else {
+            ImGui::SetCursorScreenPos(ImVec2(histPos.x + histSize.x * 0.3f,
+                                             histPos.y + histSize.y * 0.4f));
+            ImGui::TextUnformatted("No data");
+        }
+
+        ImGui::EndGroup();
+        ImGui::Separator();
+    }
+}
+
+void Task2::drawByPixels(const AppContext& ctx) {
+    if (!ctx.renderer) return;
+    if (imgR.empty() || imgG.empty() || imgB.empty()) return;
+
+    SDL_Renderer* renderer = ctx.renderer;
+    float originX = ctx.originX;
+    float originY = ctx.originY;
+    float areaW = ctx.areaW;
+    float areaH = ctx.areaH;
+
+    SDL_Rect clip{ (int)originX, (int)originY, (int)areaW, (int)areaH };
+    SDL_SetRenderClipRect(renderer, &clip);
+
+    const float rowH = 20.0f;
+    const float sepH = 8.0f;
+    const float gap = 8.0f;
+
+    float blockH = (areaH - 3 * (rowH + sepH)) / 3;
+    if (blockH < 40) blockH = 40;
+
+    // Разделяем ширину на изображение и гистограмму
+    float blockW = (areaW - gap) * 0.5f;
+    if (blockW < 40) blockW = 40;
+
+    const ImageRGB* imgs[3] = { &imgR, &imgG, &imgB };
+    std::array<int, 256>* hists[3] = { &histR, &histG, &histB };
+    Uint8 histColors[3][3] = {
+        { 255, 0, 0 },      // Red
+        { 0, 255, 0 },      // Green
+        { 0, 0, 255 }       // Blue
+    };
+
+    for (int k = 0; k < 3; ++k) {
+        float blockTop = originY + k * (blockH + rowH + sepH);
+
+        const ImageRGB& im = *imgs[k];
+
+        float s = std::min(blockW / (float)im.width,
+            blockH / (float)im.height);
+        float dw = im.width * s;
+        float dh = im.height * s;
+        float dx = originX + (blockW - dw) * 0.5f;
+        float dy = blockTop + (blockH - dh) * 0.5f;
+
+        // Отрисовка изображения канала
+        for (int py = 0; py < (int)dh; ++py) {
+            int sy = (int)(py / s);
+            if (sy >= im.height) sy = im.height - 1;
+
+            for (int px = 0; px < (int)dw; ++px) {
+                int sx = (int)(px / s);
+                if (sx >= im.width) sx = im.width - 1;
+
+                const uint8_t* p = im.at(sx, sy);
+                SDL_SetRenderDrawColor(renderer, p[0], p[1], p[2], 255);
+                SDL_RenderPoint(renderer, dx + px, dy + py);
+            }
+        }
+
+        // Отрисовка гистограммы справа
+        const std::array<int, 256>& hgt = *hists[k];
+
+        int maxH = 0;
+        for (int v : hgt) if (v > maxH) maxH = v;
+        if (maxH <= 0) continue;
+
+        float scale = blockH / (float)maxH;
+        float hx = originX + blockW + gap;
+        float dxh = blockW / 256.0f;
+
+        Uint8 cr = histColors[k][0];
+        Uint8 cg = histColors[k][1];
+        Uint8 cb = histColors[k][2];
+        SDL_SetRenderDrawColor(renderer, cr, cg, cb, 255);
+
+        for (int v = 0; v < 256; ++v) {
+            float xv = hx + (v + 0.5f) * dxh;
+            float barH = hgt[v] * scale;
+            if (barH < 1.0f && hgt[v] > 0) barH = 1.0f;
+
+            for (int py = 0; py < (int)barH; ++py)
+                SDL_RenderPoint(renderer, xv, blockTop + blockH - py);
+        }
+    }
+
+    SDL_SetRenderClipRect(renderer, nullptr);
+}
 
 Task3::~Task3() noexcept { freeTextures(); }
 void Task3::freeTextures() noexcept { if (texApplyed) { SDL_DestroyTexture(texApplyed); texApplyed = nullptr; } }

@@ -416,3 +416,104 @@ void drawImageRGBByPixels(SDL_Renderer* renderer, const ImageRGB& img,
 
     SDL_SetRenderClipRect(renderer, nullptr);
 }
+// Выделение канала R (красный)
+ImageRGB extractChannelR(const ImageRGB& img) {
+    ImageRGB result;
+    if (img.empty()) return result;
+    
+    result.channels = 3;
+    result.width = img.width;
+    result.height = img.height;
+    result.data = std::vector<uint8_t>(img.width * img.height * 3);
+    
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const uint8_t* pixel = img.at(x, y);
+            uint8_t r = pixel[0];  // R канал
+            uint8_t* out = result.at(x, y);
+            out[0] = r;     // R
+            out[1] = 0;     // G
+            out[2] = 0;     // B
+        }
+    }
+    return result;
+}
+
+// Выделение канала G (зелёный)
+ImageRGB extractChannelG(const ImageRGB& img) {
+    ImageRGB result;
+    if (img.empty()) return result;
+    
+    result.channels = 3;
+    result.width = img.width;
+    result.height = img.height;
+    result.data = std::vector<uint8_t>(img.width * img.height * 3);
+    
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const uint8_t* pixel = img.at(x, y);
+            uint8_t g = pixel[1];  // G канал
+            uint8_t* out = result.at(x, y);
+            out[0] = 0;     // R
+            out[1] = g;     // G
+            out[2] = 0;     // B
+        }
+    }
+    return result;
+}
+
+// Выделение канала B (синий)
+ImageRGB extractChannelB(const ImageRGB& img) {
+    ImageRGB result;
+    if (img.empty()) return result;
+    
+    result.channels = 3;
+    result.width = img.width;
+    result.height = img.height;
+    result.data = std::vector<uint8_t>(img.width * img.height * 3);
+    
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const uint8_t* pixel = img.at(x, y);
+            uint8_t b = pixel[2];  // B канал
+            uint8_t* out = result.at(x, y);
+            out[0] = 0;     // R
+            out[1] = 0;     // G
+            out[2] = b;     // B
+        }
+    }
+    return result;
+}
+
+// Гистограмма канала R
+std::array<int, 256> histogramChannelR(const ImageRGB& img)
+{
+    std::array<int, 256> h{};
+    for (size_t i = 0; i < img.data.size(); i += 3) {
+        uint8_t r = img.data[i];
+        ++h[r];
+    }
+    return h;
+}
+
+// Гистограмма канала G
+std::array<int, 256> histogramChannelG(const ImageRGB& img)
+{
+    std::array<int, 256> h{};
+    for (size_t i = 1; i < img.data.size(); i += 3) {
+        uint8_t g = img.data[i];
+        ++h[g];
+    }
+    return h;
+}
+
+// Гистограмма канала B
+std::array<int, 256> histogramChannelB(const ImageRGB& img)
+{
+    std::array<int, 256> h{};
+    for (size_t i = 2; i < img.data.size(); i += 3) {
+        uint8_t b = img.data[i];
+        ++h[b];
+    }
+    return h;
+}

@@ -69,14 +69,23 @@ public:
 
 class Task2 : public TaskInterface {
 public:
-    ~Task2() noexcept override = default;
+    // RGB изображения для каналов R, G, B (каждый канал в своём цвете)
+    ImageRGB imgR, imgG, imgB;
 
-    void prepare(const AppContext& /*ctx*/) override {}
-    void drawByTexture(const AppContext& /*ctx*/) override
-    {
-        ImGui::TextUnformatted("Task 2 — not implemented");
-    }
-    void drawByPixels(const AppContext& /*ctx*/) override {}
+    // Текстуры для каждого канала
+    SDL_Texture* texR = nullptr;
+    SDL_Texture* texG = nullptr;
+    SDL_Texture* texB = nullptr;
+
+    // Гистограммы для каждого канала
+    std::array<int, 256> histR{}, histG{}, histB{};
+
+    ~Task2() noexcept override;
+    void freeTextures() noexcept;
+
+    void prepare(const AppContext& ctx) override;
+    void drawByTexture(const AppContext& ctx) override;
+    void drawByPixels(const AppContext& ctx) override;
 };
 
 class Task3 : public TaskInterface {

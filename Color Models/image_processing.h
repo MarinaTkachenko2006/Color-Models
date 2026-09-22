@@ -52,4 +52,15 @@ bool saveImagePNG(const std::string& path, const ImageRGB& img);
 
 void drawImageRGBByPixels(SDL_Renderer* renderer, const ImageRGB& img, float originX, float originY, float areaW, float areaH);
 
+
+// Выделение каналов R, G, B из RGB-изображения (каждый в своём цвете)
+ImageRGB extractChannelR(const ImageRGB& img);
+ImageRGB extractChannelG(const ImageRGB& img);
+ImageRGB extractChannelB(const ImageRGB& img);
+
+// Гистограммы каналов RGB
+std::array<int, 256> histogramChannelR(const ImageRGB& img);
+std::array<int, 256> histogramChannelG(const ImageRGB& img);
+std::array<int, 256> histogramChannelB(const ImageRGB& img);
+
 #endif // ! __IMAGE_PROCESSING_IMD_MAR_VIK__
