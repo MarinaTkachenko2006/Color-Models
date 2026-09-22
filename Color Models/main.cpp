@@ -20,7 +20,7 @@
 #include "dialog_windows.h"
 
 static bool showWindow2 (false);   // Флаг открытости окна заданий
-static bool manualDrawing (false);  // Флаг ручной или текстурной отрисовки
+static bool manualDrawing (true);  // Флаг ручной или текстурной отрисовки
 
 enum class ActiveTask { None, Task1, Task2, Task3 }; // Перечисление возможных активных заданий
 
@@ -237,7 +237,8 @@ int main(int argc, char* argv[])
                 currentTask->drawControls(ctx);
 
                 // Пересчёт превью
-                currentTask->updatePreview(renderer);
+                if (auto* t3 = dynamic_cast<Task3*>(currentTask))
+                    t3->updatePreview(renderer);
 
                 // Захват оставшегося места под SDL-отрисовку
                 manualOrigin = ImGui::GetCursorScreenPos();
@@ -249,7 +250,8 @@ int main(int argc, char* argv[])
             else {
                 // Текстурный режим
                 currentTask->drawControls(ctx);
-                currentTask->updatePreview(renderer);
+                if (auto* t3 = dynamic_cast<Task3*>(currentTask))
+                    t3->updatePreview(renderer);
                 currentTask->drawByTexture(ctx);
             }
 

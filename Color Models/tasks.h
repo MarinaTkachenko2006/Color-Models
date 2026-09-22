@@ -43,7 +43,6 @@ public:
     virtual void drawByPixels(const AppContext& ctx) = 0;
 
     virtual void drawControls(const AppContext& ctx) {}
-    virtual void updatePreview(SDL_Renderer* renderer) {}
 };
 
 // Класс задачи 1
@@ -100,7 +99,7 @@ public:
 
     ~Task3() noexcept override;
     void freeTextures() noexcept;
-    void updatePreview(SDL_Renderer* renderer) override;
+    void updatePreview(SDL_Renderer* renderer);
     void prepare(const AppContext& ctx) override;
     void drawByTexture(const AppContext& ctx) override;
     void drawByPixels(const AppContext& ctx) override;

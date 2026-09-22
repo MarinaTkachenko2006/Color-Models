@@ -251,6 +251,15 @@ void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const st
     for (int v : hgt) if (v > maxH) maxH = v;
     if (maxH == 0 || size.x <= 0 || size.y <= 0) return;
 
+    ImVec2 plotMin(origin.x, origin.y);
+    ImVec2 plotMax(origin.x + size.x, origin.y + size.y);
+    float  plotW = plotMax.x - plotMin.x;
+    float  plotH = plotMax.y - plotMin.y;
+    if (plotW <= 0 || plotH <= 0) return;
+
+    ImU32 axisColor = IM_COL32(200, 200, 200, 255);
+    ImU32 textColor = IM_COL32(220, 220, 220, 255);
+
     float baseY = origin.y + size.y; // Y-координата основания столбиков
     float scale = size.y / static_cast<float>(maxH);
     float dx = size.x / 256.0f;
@@ -261,6 +270,48 @@ void drawHistogramByTexture(ImDrawList* dl, ImVec2 origin, ImVec2 size, const st
         if (barH < 1 && hgt[v] > 0) barH = 1;
         dl->AddLine(ImVec2(xv, baseY), ImVec2(xv, baseY - barH), color);
     }
+
+    // Метки по оси X
+    int xTicks[5] = { 0, 64, 128, 192, 255 };
+    for (int i (0); i < 5; ++i) {
+        int v = xTicks[i];
+        float xv = plotMin.x + v * (plotW / 255.0f); // Вычисление координаты X метки, такой что 0 соответствует левому краю, а 255 - правому
+
+        dl->AddLine(ImVec2(xv, baseY), ImVec2(xv, baseY + 4), axisColor);
+
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%d", v);
+        ImVec2 ts = ImGui::CalcTextSize(buf); // Размер подписи в пикселях
+
+        float textX;
+        if (i == 0) textX = xv;
+        else if (i == 4) textX = xv - ts.x;
+        else textX = xv - ts.x * 0.5f;
+
+        dl->AddText(ImVec2(textX, baseY + 6), textColor, buf);
+    }
+
+
+    // Подписи по Y (0 и maxH)
+    char bufY[16];
+    ImVec2 tsY;
+
+    std::snprintf(bufY, sizeof(bufY), "%d", 0);
+    tsY = ImGui::CalcTextSize(bufY);
+    dl->AddText(ImVec2(plotMin.x - tsY.x - 6,
+        plotMax.y - tsY.y * 0.5f), textColor, bufY);
+
+    std::snprintf(bufY, sizeof(bufY), "%d", maxH);
+    tsY = ImGui::CalcTextSize(bufY);
+    dl->AddText(ImVec2(plotMin.x - tsY.x - 6,
+        plotMin.y - tsY.y * 0.5f), textColor, bufY);
+
+
+    // Подпись оси X
+    const char* xLabel = "Intensity";
+    ImVec2 ts = ImGui::CalcTextSize(xLabel);
+    dl->AddText(ImVec2(plotMin.x + (plotW - ts.x) * 0.5f,
+        plotMax.y), textColor, xLabel);
 }
 
 // Уменьшение изображения (для быстрого выполнения Task 3)
